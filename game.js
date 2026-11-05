@@ -206,18 +206,20 @@ class Ship {
     this.vx     = 0;
     this.vy     = 0;
     this.radius = 12;
-    this.thrusting     = false;
-    this.invincible    = 3;
-    this.shootCooldown = 0;
-    this.speedTimer    = 0;
-    this.dead          = false;
+    this.thrusting       = false;
+    this.invincible      = 3;
+    this.shootCooldown   = 0;
+    this.speedTimer      = 0;
+    this.tripleShotTimer = 0;
+    this.dead            = false;
   }
 
   update(dt) {
     if (this.dead) return;
-    if (this.invincible    > 0) this.invincible    -= dt;
-    if (this.shootCooldown > 0) this.shootCooldown -= dt;
-    if (this.speedTimer    > 0) this.speedTimer    -= dt;
+    if (this.invincible      > 0) this.invincible      -= dt;
+    if (this.shootCooldown   > 0) this.shootCooldown   -= dt;
+    if (this.speedTimer      > 0) this.speedTimer      -= dt;
+    if (this.tripleShotTimer > 0) this.tripleShotTimer -= dt;
 
     const boosted = this.speedTimer > 0;
     const ROT     = 3.5;   // rad/s
@@ -254,8 +256,18 @@ class Ship {
     if (this.shootCooldown > 0 || this.dead) return [];
     this.shootCooldown = 0.2;
     const NOSE = 21;
-    const ox = this.x + Math.cos(this.angle) * NOSE;
-    const oy = this.y + Math.sin(this.angle) * NOSE;
+    const cos = Math.cos(this.angle);
+    const sin = Math.sin(this.angle);
+    const ox = this.x + cos * NOSE;
+    const oy = this.y + sin * NOSE;
+
+    // Triple shot: tres balas paralelas en línea recta
+    if (this.tripleShotTimer > 0) {
+      return [-TRIPLE_SHOT_SPACING, 0, TRIPLE_SHOT_SPACING].map(offset =>
+        new Bullet(ox - sin * offset, oy + cos * offset, this.angle)
+      );
+    }
+
     return [new Bullet(ox, oy, this.angle)];
   }
 
@@ -329,15 +341,16 @@ class Particle {
   }
 }
 
-// ── Power-up: Velocidad ───────────────────────────────────────────────────────
-const POWERUP_DURATION   = 5;    // segundos de efecto
-const POWERUP_TTL        = 12;   // segundos en pantalla si no se recoge
-const POWERUP_RADIUS     = 13;
+// ── Power-ups ─────────────────────────────────────────────────────────────────
+const POWERUP_DURATION    = 5;    // segundos de efecto
+const POWERUP_TTL         = 12;   // segundos en pantalla si no se recoge
+const POWERUP_RADIUS      = 13;
 const POWERUP_DROP_CHANCE = 0.12;
-const BOOST_THRUST_MULT  = 2.5;
-const BOOST_MAX_SPEED    = 850;  // px/s
+const BOOST_THRUST_MULT   = 2.5;
+const BOOST_MAX_SPEED     = 850;  // px/s
+const TRIPLE_SHOT_SPACING = 7;    // separación lateral entre balas
 
-class SpeedBoost {
+class PowerUp {
   constructor() {
     let x, y;
     const SAFE_DIST = 140;
@@ -364,6 +377,17 @@ class SpeedBoost {
     this.pulse += dt * 4;
     this.ttl -= dt;
     if (this.ttl <= 0) this.dead = true;
+  }
+}
+
+class SpeedBoost extends PowerUp {
+  constructor() {
+    super();
+    this.color = '80,230,255';
+  }
+
+  apply(ship) {
+    ship.speedTimer = POWERUP_DURATION;
   }
 
   draw() {
@@ -397,6 +421,53 @@ class SpeedBoost {
     ctx.lineTo( 0, -2);
     ctx.closePath();
     ctx.stroke();
+
+    ctx.restore();
+  }
+}
+
+class TripleShot extends PowerUp {
+  constructor() {
+    super();
+    this.color = '255,110,220';
+  }
+
+  apply(ship) {
+    ship.tripleShotTimer = POWERUP_DURATION;
+  }
+
+  draw() {
+    // Parpadeo cuando está por desaparecer
+    if (this.ttl < 3 && Math.floor(this.ttl * 8) % 2 === 0) return;
+
+    const glow = 0.5 + 0.5 * Math.sin(this.pulse);
+
+    ctx.save();
+    ctx.translate(this.x, this.y);
+
+    // Halo pulsante
+    ctx.globalAlpha = 0.2 + glow * 0.35;
+    ctx.strokeStyle = '#f6f';
+    ctx.lineWidth   = 2;
+    ctx.beginPath();
+    ctx.arc(0, 0, this.radius + 4 + glow * 3, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Tres flechas paralelas
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = '#fcf';
+    ctx.lineWidth   = 1.8;
+    ctx.lineJoin    = 'round';
+    ctx.lineCap     = 'round';
+    for (const dx of [-6, 0, 6]) {
+      ctx.beginPath();
+      ctx.moveTo(dx, 7);
+      ctx.lineTo(dx, -7);
+      ctx.moveTo(dx - 3, -4);
+      ctx.lineTo(dx, -7);
+      ctx.lineTo(dx + 3, -4);
+      ctx.stroke();
+    }
 
     ctx.restore();
   }
@@ -478,6 +549,7 @@ function killShip() {
   explode(ship.x, ship.y, 14);
   ship.dead = true;
   ship.speedTimer = 0;
+  ship.tripleShotTimer = 0;
   lives--;
   if (lives <= 0) {
     state = 'gameover';
@@ -551,7 +623,7 @@ function update(dt) {
         explode(a.x, a.y, a.isShootingStar ? 12 : a.size * 5);
         newAsteroids.push(...a.split());
         if (powerups.length === 0 && Math.random() < POWERUP_DROP_CHANCE)
-          powerups.push(new SpeedBoost());
+          powerups.push(Math.random() < 0.5 ? new SpeedBoost() : new TripleShot());
       }
     }
   }
@@ -562,8 +634,8 @@ function update(dt) {
   for (const p of powerups) {
     if (!p.dead && dist(ship, p) < ship.radius + p.radius) {
       p.dead = true;
-      ship.speedTimer = POWERUP_DURATION;
-      explode(p.x, p.y, 10, '80,230,255');
+      p.apply(ship);
+      explode(p.x, p.y, 10, p.color);
     }
   }
   powerups = powerups.filter(p => !p.dead);
@@ -600,6 +672,16 @@ function drawLifeIcon(x, y) {
   ctx.restore();
 }
 
+function drawEffectTimer(label, timer, color, y) {
+  const ratio = Math.max(0, timer / POWERUP_DURATION);
+  ctx.fillStyle = color;
+  ctx.fillText(`${label} ${timer.toFixed(1)}s`, 14, y);
+  ctx.globalAlpha = 0.25;
+  ctx.fillRect(14, y + 7, 140, 4);
+  ctx.globalAlpha = 1;
+  ctx.fillRect(14, y + 7, 140 * ratio, 4);
+}
+
 function drawHUD() {
   ctx.fillStyle = '#fff';
   ctx.font = '15px monospace';
@@ -607,18 +689,16 @@ function drawHUD() {
   ctx.textAlign = 'left';
   ctx.fillText(`SCORE  ${score}`, 14, 26);
 
-  // Indicador del power-up de velocidad
+  // Indicadores de power-ups activos
+  let effectY = 48;
   if (ship.speedTimer > 0) {
-    const ratio = Math.max(0, ship.speedTimer / POWERUP_DURATION);
-    ctx.fillStyle = '#4ff';
-    ctx.fillText(`VELOCIDAD ${ship.speedTimer.toFixed(1)}s`, 14, 48);
-    ctx.fillStyle = 'rgba(80, 230, 255, 0.25)';
-    ctx.fillRect(14, 55, 140, 4);
-    ctx.fillStyle = '#4ff';
-    ctx.fillRect(14, 55, 140 * ratio, 4);
-    ctx.fillStyle = '#fff';
+    drawEffectTimer('VELOCIDAD', ship.speedTimer, '#4ff', effectY);
+    effectY += 24;
   }
+  if (ship.tripleShotTimer > 0)
+    drawEffectTimer('TRIPLE SHOT', ship.tripleShotTimer, '#f6f', effectY);
 
+  ctx.fillStyle = '#fff';
   ctx.textAlign = 'center';
   ctx.fillText(`NIVEL ${level}`, W / 2, 26);
 
