@@ -43,3 +43,5 @@ Luego visita `http://localhost:3000`.
 - 3 vidas con invencibilidad temporal al reaparecer (parpadeo)
 - Asteroides se parten en fragmentos más pequeños al ser destruidos
 - Partículas de explosión al destruir asteroides
+- Power-up de **velocidad**: al destruir asteroides puede aparecer un rayo cian flotante. Al recogerlo, la nave obtiene empuje ×2.5 y un tope de velocidad alto durante **5 segundos**, con estela cian y contador en el HUD. Si no se recoge, desaparece a los 12 segundos.
+- **Estrella fugaz**: asteroide especial pequeño que cruza el mapa a ~240 px/s (mucho más rápido que los normales), con estela luminosa. Aparece periódicamente, dura 7 segundos y se desvanece si no es destruida. Otorga 150 puntos y no se divide en fragmentos.
