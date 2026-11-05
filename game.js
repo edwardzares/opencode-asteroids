@@ -29,6 +29,194 @@ const dist  = (a, b)   => Math.hypot(a.x - b.x, a.y - b.y);
 const rand  = (min, max) => min + Math.random() * (max - min);
 const randInt = (min, max) => Math.floor(rand(min, max + 1));
 
+// ── Skins de la nave ──────────────────────────────────────────────────────────
+const SKIN_STORAGE_KEY = 'asteroids.skin';
+
+// Cada skin dibuja la nave en coordenadas locales: nariz hacia +x.
+// `stroke`, `fill`, `dash` y `glow` definen el estilo; `flame`, `boostFlame`,
+// `bullet`, `particle` y `trail` se usan en el resto de efectos de la nave.
+const SKINS = [
+  {
+    name: 'Clásica',
+    stroke: '#ffffff',
+    lineWidth: 1.5,
+    flame: 'rgba(255, 130, 0, 0.85)',
+    boostFlame: 'rgba(80, 230, 255, 0.9)',
+    bullet: '#ffffff',
+    particle: '255,255,255',
+    trail: '80,230,255',
+    draw(g) {
+      g.beginPath();
+      g.moveTo( 20,  0);
+      g.lineTo(-12, -9);
+      g.lineTo( -7,  0);
+      g.lineTo(-12,  9);
+      g.closePath();
+      g.stroke();
+    },
+  },
+  {
+    name: 'Neón',
+    stroke: '#00e5ff',
+    lineWidth: 1.8,
+    glow: '#00e5ff',
+    glowBlur: 12,
+    flame: 'rgba(0, 229, 255, 0.9)',
+    boostFlame: 'rgba(255, 0, 220, 0.9)',
+    bullet: '#00e5ff',
+    particle: '0,229,255',
+    trail: '0,229,255',
+    draw(g) {
+      g.beginPath();
+      g.moveTo( 21,  0);
+      g.lineTo(  2, -7);
+      g.lineTo(-13, -10);
+      g.lineTo( -7,  0);
+      g.lineTo(-13,  10);
+      g.lineTo(  2,  7);
+      g.closePath();
+      g.stroke();
+      g.beginPath();
+      g.moveTo( 14, 0);
+      g.lineTo( -4, 0);
+      g.stroke();
+    },
+  },
+  {
+    name: 'Caza',
+    stroke: '#ff9f1c',
+    lineWidth: 1.6,
+    flame: 'rgba(255, 120, 0, 0.9)',
+    boostFlame: 'rgba(255, 230, 120, 0.9)',
+    bullet: '#ff9f1c',
+    particle: '255,159,28',
+    trail: '255,159,28',
+    draw(g) {
+      g.beginPath();
+      g.moveTo( 22,   0);
+      g.lineTo(  4,  -6);
+      g.lineTo( -6, -12);
+      g.lineTo( -2,  -4);
+      g.lineTo(-12,  -4);
+      g.lineTo( -8,   0);
+      g.lineTo(-12,   4);
+      g.lineTo( -2,   4);
+      g.lineTo( -6,  12);
+      g.lineTo(  4,   6);
+      g.closePath();
+      g.stroke();
+    },
+  },
+  {
+    name: 'Fantasma',
+    stroke: 'rgba(200, 170, 255, 0.9)',
+    lineWidth: 1.4,
+    dash: [6, 5],
+    glow: 'rgba(160, 120, 255, 0.8)',
+    glowBlur: 10,
+    flame: 'rgba(180, 140, 255, 0.8)',
+    boostFlame: 'rgba(230, 200, 255, 0.9)',
+    bullet: '#c8aaff',
+    particle: '200,170,255',
+    trail: '200,170,255',
+    draw(g) {
+      g.beginPath();
+      g.moveTo( 19,  0);
+      g.quadraticCurveTo(  2, -14, -12, -7);
+      g.quadraticCurveTo(-18,   0, -12,  7);
+      g.quadraticCurveTo(  2,  14,  19,  0);
+      g.closePath();
+      g.stroke();
+    },
+  },
+  {
+    name: 'Dorada',
+    stroke: '#ffd34d',
+    fill: 'rgba(255, 200, 60, 0.15)',
+    lineWidth: 1.6,
+    glow: 'rgba(255, 200, 60, 0.6)',
+    glowBlur: 8,
+    flame: 'rgba(255, 200, 60, 0.9)',
+    boostFlame: 'rgba(255, 255, 200, 0.9)',
+    bullet: '#ffd34d',
+    particle: '255,211,77',
+    trail: '255,211,77',
+    draw(g) {
+      g.beginPath();
+      g.moveTo( 21,  0);
+      g.lineTo(  0, -9);
+      g.lineTo(-13, -9);
+      g.lineTo( -6,  0);
+      g.lineTo(-13,  9);
+      g.lineTo(  0,  9);
+      g.closePath();
+      g.fill();
+      g.stroke();
+    },
+  },
+  {
+    name: 'Esmeralda',
+    stroke: '#2ee6a8',
+    lineWidth: 1.7,
+    glow: '#2ee6a8',
+    glowBlur: 10,
+    flame: 'rgba(46, 230, 168, 0.9)',
+    boostFlame: 'rgba(180, 255, 230, 0.9)',
+    bullet: '#2ee6a8',
+    particle: '46,230,168',
+    trail: '46,230,168',
+    draw(g) {
+      g.beginPath();
+      g.moveTo( 20,   0);
+      g.lineTo(  6,  -8);
+      g.lineTo(-10, -11);
+      g.lineTo( -5,  -3);
+      g.lineTo(-14,   0);
+      g.lineTo( -5,   3);
+      g.lineTo(-10,  11);
+      g.lineTo(  6,   8);
+      g.closePath();
+      g.stroke();
+    },
+  },
+];
+
+function applySkinStyle(g, skin, lineWidth) {
+  g.strokeStyle = skin.stroke;
+  g.fillStyle   = skin.fill || 'rgba(0, 0, 0, 0)';
+  g.lineWidth   = lineWidth ?? skin.lineWidth;
+  g.lineJoin    = 'round';
+  g.lineCap     = 'round';
+  g.setLineDash(skin.dash || []);
+  g.shadowColor = skin.glow || 'transparent';
+  g.shadowBlur  = skin.glow ? (skin.glowBlur || 8) : 0;
+}
+
+function loadSkinIndex() {
+  try {
+    const saved = Number(localStorage.getItem(SKIN_STORAGE_KEY));
+    if (Number.isInteger(saved) && saved >= 0 && saved < SKINS.length) return saved;
+  } catch (e) { /* localStorage no disponible (file://, modo privado, etc.) */ }
+  return 0;
+}
+
+let skinIndex = loadSkinIndex();
+let skinToastTimer = 0;
+
+function selectSkin(index) {
+  skinIndex = (index + SKINS.length) % SKINS.length;
+  skinToastTimer = 1.8;
+  try { localStorage.setItem(SKIN_STORAGE_KEY, String(skinIndex)); } catch (e) { /* ignorar */ }
+}
+
+function handleSkinInput(dt) {
+  if (skinToastTimer > 0) skinToastTimer -= dt;
+  if (pressed('KeyC')) selectSkin(skinIndex + 1);
+  for (let i = 0; i < SKINS.length; i++) {
+    if (pressed(`Digit${i + 1}`)) selectSkin(i);
+  }
+}
+
 // ── Bullet ────────────────────────────────────────────────────────────────────
 class Bullet {
   constructor(x, y, angle) {
@@ -50,7 +238,7 @@ class Bullet {
   }
 
   draw() {
-    ctx.fillStyle = '#fff';
+    ctx.fillStyle = SKINS[skinIndex].bullet || '#fff';
     ctx.beginPath();
     ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
     ctx.fill();
@@ -264,31 +452,27 @@ class Ship {
     // Parpadeo durante invencibilidad de reaparición
     if (this.invincible > 0 && Math.floor(this.invincible * 8) % 2 === 0) return;
 
+    const skin = SKINS[skinIndex];
+
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(this.angle);
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth   = 1.5;
-    ctx.lineJoin    = 'round';
 
-    // Silueta clásica: triángulo con muesca trasera
-    ctx.beginPath();
-    ctx.moveTo( 20,  0);   // nariz
-    ctx.lineTo(-12, -9);   // ala izquierda
-    ctx.lineTo( -7,  0);   // muesca trasera
-    ctx.lineTo(-12,  9);   // ala derecha
-    ctx.closePath();
-    ctx.stroke();
+    applySkinStyle(ctx, skin);
+    skin.draw(ctx);
 
     // Llama del propulsor
     if (this.thrusting && Math.random() > 0.35) {
       const boosted = this.speedTimer > 0;
       const flameLen = boosted ? rand(10, 20) : rand(6, 14);
+      ctx.setLineDash([]);
       ctx.beginPath();
       ctx.moveTo(-8, -4);
       ctx.lineTo(-8 - flameLen, 0);
       ctx.lineTo(-8,  4);
-      ctx.strokeStyle = boosted ? 'rgba(80, 230, 255, 0.9)' : 'rgba(255, 130, 0, 0.85)';
+      ctx.strokeStyle = boosted ? skin.boostFlame : skin.flame;
+      ctx.lineWidth   = 1.5;
+      ctx.shadowBlur  = 0;
       ctx.stroke();
     }
 
@@ -475,7 +659,7 @@ function explode(x, y, count = 8, color = '255,255,255') {
 }
 
 function killShip() {
-  explode(ship.x, ship.y, 14);
+  explode(ship.x, ship.y, 14, SKINS[skinIndex].particle);
   ship.dead = true;
   ship.speedTimer = 0;
   lives--;
@@ -489,6 +673,8 @@ function killShip() {
 
 // ── Update ────────────────────────────────────────────────────────────────────
 function update(dt) {
+  handleSkinInput(dt);
+
   if (state === 'gameover') {
     if (pressed('Space')) initGame();
     particles.forEach(p => p.update(dt));
@@ -530,7 +716,7 @@ function update(dt) {
     const tail = new Particle(
       ship.x - Math.cos(ship.angle) * 14,
       ship.y - Math.sin(ship.angle) * 14,
-      '80,230,255'
+      SKINS[skinIndex].trail
     );
     tail.life = tail.ttl = rand(0.2, 0.45);
     particles.push(tail);
@@ -584,19 +770,16 @@ function update(dt) {
 
 // ── Draw ──────────────────────────────────────────────────────────────────────
 function drawLifeIcon(x, y) {
+  const skin  = SKINS[skinIndex];
+  const scale = 0.42;
+
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(-Math.PI / 2);
-  ctx.strokeStyle = '#fff';
-  ctx.lineWidth   = 1.2;
-  ctx.lineJoin    = 'round';
-  ctx.beginPath();
-  ctx.moveTo( 9,  0);
-  ctx.lineTo(-6, -5);
-  ctx.lineTo(-3,  0);
-  ctx.lineTo(-6,  5);
-  ctx.closePath();
-  ctx.stroke();
+  ctx.scale(scale, scale);
+  applySkinStyle(ctx, skin, 1.2 / scale);
+  ctx.shadowBlur = 0;   // sin glow en iconos pequeños
+  skin.draw(ctx);
   ctx.restore();
 }
 
@@ -625,9 +808,33 @@ function drawHUD() {
   for (let i = 0; i < lives; i++)
     drawLifeIcon(W - 16 - i * 22, 18);
 
+  // Skin actual (se cambia con C o con 1-6)
+  ctx.textAlign = 'left';
+  ctx.font      = '13px monospace';
+  ctx.fillStyle = 'rgba(255,255,255,0.4)';
+  ctx.fillText(`SKIN: ${SKINS[skinIndex].name}  [C]`, 14, H - 14);
 }
 
-function drawOverlay(title, sub) {
+function drawSkinToast() {
+  if (skinToastTimer <= 0) return;
+
+  const skin  = SKINS[skinIndex];
+  const alpha = Math.min(1, skinToastTimer * 2);
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.textAlign   = 'center';
+  ctx.font        = 'bold 18px monospace';
+  ctx.fillStyle   = skin.stroke;
+  if (skin.glow) {
+    ctx.shadowColor = skin.glow;
+    ctx.shadowBlur  = skin.glowBlur || 8;
+  }
+  ctx.fillText(`SKIN: ${skin.name.toUpperCase()}`, W / 2, H - 42);
+  ctx.restore();
+}
+
+function drawOverlay(title, sub, hint) {
   ctx.textAlign   = 'center';
   ctx.fillStyle   = '#fff';
   ctx.font        = 'bold 46px monospace';
@@ -635,6 +842,11 @@ function drawOverlay(title, sub) {
   ctx.font        = '18px monospace';
   ctx.fillStyle   = 'rgba(255,255,255,0.65)';
   ctx.fillText(sub, W / 2, H / 2 + 22);
+  if (hint) {
+    ctx.font      = '15px monospace';
+    ctx.fillStyle = 'rgba(255,255,255,0.45)';
+    ctx.fillText(hint, W / 2, H / 2 + 56);
+  }
 }
 
 function draw() {
@@ -648,9 +860,14 @@ function draw() {
   ship.draw();
 
   drawHUD();
+  drawSkinToast();
 
   if (state === 'gameover')
-    drawOverlay('GAME OVER', `PUNTAJE: ${score}   —   ESPACIO PARA REINICIAR`);
+    drawOverlay(
+      'GAME OVER',
+      `PUNTAJE: ${score}   —   ESPACIO PARA REINICIAR`,
+      'C: CAMBIAR SKIN   ·   1-6: SKIN DIRECTO'
+    );
 }
 
 // ── Loop principal ────────────────────────────────────────────────────────────
