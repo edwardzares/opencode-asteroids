@@ -30,7 +30,7 @@ Luego visita `http://localhost:3000`.
 | `↑`       | Propulsar  |
 | `Espacio` | Disparar   |
 | `C`       | Cambiar skin |
-| `1`–`6`   | Elegir skin directamente |
+| `1`–`7`   | Elegir skin directamente |
 
 ## Puntuación
 
@@ -39,6 +39,8 @@ Luego visita `http://localhost:3000`.
 | Grande    | 20     |
 | Mediano   | 50     |
 | Pequeño   | 100    |
+
+La skin **Morada** otorga el **doble de puntos** por cada asteroide o estrella fugaz destruida.
 
 ## Características
 
@@ -49,7 +51,7 @@ Luego visita `http://localhost:3000`.
 - Power-up de **triple shot**: icono magenta con tres flechas paralelas. Durante **5 segundos**, cada disparo lanza 3 balas paralelas en línea recta, con contador en el HUD. Si no se recoge, desaparece a los 12 segundos.
 - **Escudo**: power-up circular azul que puede aparecer al destruir asteroides. Al recogerlo, la nave queda rodeada por una burbuja protectora durante **8 segundos**: bloquea y destruye los proyectiles enemigos y, si la nave choca contra un asteroide, el escudo lo destruye (con puntos, explosión y fragmentos) en lugar de perder una vida. Cada impacto genera un destello y partículas. El HUD muestra el tiempo restante. La lógica de proyectiles enemigos (`EnemyBullet` y `enemyBullets`) ya está integrada para cuando se añadan naves enemigas.
 - **Estrella fugaz**: asteroide especial pequeño que cruza el mapa a ~240 px/s (mucho más rápido que los normales), con estela luminosa. Aparece periódicamente, dura 7 segundos y se desvanece si no es destruida. Otorga 150 puntos y no se divide en fragmentos.
-- **Skins de la nave**: 6 apariencias distintas (Clásica, Neón, Caza, Fantasma, Dorada y Esmeralda). Cada skin cambia la silueta, el color, el brillo, la llama del propulsor, las balas, la estela del boost y las partículas de explosión. Se cambian en cualquier momento con `C` (ciclar) o con las teclas `1`–`6`, y la elección se guarda en `localStorage`. La skin activa también se usa en los iconos de vidas y se muestra en el HUD.
+- **Skins de la nave**: 7 apariencias distintas (Clásica, Neón, Caza, Fantasma, Dorada, Esmeralda y Morada). Cada skin cambia la silueta, el color, el brillo, la llama del propulsor, las balas, la estela del boost y las partículas de explosión. Se cambian en cualquier momento con `C` (ciclar) o con las teclas `1`–`7`, y la elección se guarda en `localStorage`. La skin activa también se usa en los iconos de vidas y se muestra en el HUD. La skin **Morada** dibuja la nave al doble de tamaño y multiplica por dos los puntos obtenidos.
 
 ## Comando `/worktree`
 
