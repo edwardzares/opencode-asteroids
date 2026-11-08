@@ -1,1 +1,7 @@
+# Archivos de entorno y credenciales locales
+.env
+.env.local
+.env.*.local
+
+# Github
 .worktrees
