@@ -35,6 +35,7 @@ const SKIN_STORAGE_KEY = 'asteroids.skin';
 // Cada skin dibuja la nave en coordenadas locales: nariz hacia +x.
 // `stroke`, `fill`, `dash` y `glow` definen el estilo; `flame`, `boostFlame`,
 // `bullet`, `particle` y `trail` se usan en el resto de efectos de la nave.
+// `scale` agranda la nave y `scoreMultiplier` multiplica los puntos ganados.
 const SKINS = [
   {
     name: 'Clásica',
@@ -176,6 +177,31 @@ const SKINS = [
       g.lineTo(-10,  11);
       g.lineTo(  6,   8);
       g.closePath();
+      g.stroke();
+    },
+  },
+  {
+    name: 'Morada',
+    stroke: '#c04dff',
+    fill: 'rgba(150, 40, 255, 0.18)',
+    lineWidth: 1.6,
+    glow: '#b04dff',
+    glowBlur: 12,
+    flame: 'rgba(190, 80, 255, 0.9)',
+    boostFlame: 'rgba(240, 170, 255, 0.9)',
+    bullet: '#c86bff',
+    particle: '192,77,255',
+    trail: '192,77,255',
+    scale: 2,
+    scoreMultiplier: 2,
+    draw(g) {
+      g.beginPath();
+      g.moveTo( 20,  0);
+      g.lineTo(-12, -9);
+      g.lineTo( -7,  0);
+      g.lineTo(-12,  9);
+      g.closePath();
+      g.fill();
       g.stroke();
     },
   },
@@ -430,7 +456,6 @@ class Ship {
     this.angle  = -Math.PI / 2;
     this.vx     = 0;
     this.vy     = 0;
-    this.radius = 12;
     this.thrusting       = false;
     this.invincible      = 3;
     this.shootCooldown   = 0;
@@ -442,6 +467,8 @@ class Ship {
     this.dead            = false;
   }
 
+  get scale() { return SKINS[skinIndex].scale || 1; }
+  get radius() { return 12 * this.scale; }
   get shieldRadius() { return this.radius + 16; }
 
   update(dt) {
@@ -488,7 +515,7 @@ class Ship {
   tryShoot() {
     if (this.shootCooldown > 0 || this.dead) return [];
     this.shootCooldown = 0.2;
-    const NOSE = 21;
+    const NOSE = 21 * this.scale;
     const cos = Math.cos(this.angle);
     const sin = Math.sin(this.angle);
     const ox = this.x + cos * NOSE;
@@ -511,12 +538,14 @@ class Ship {
 
     if (!blinking) {
       const skin = SKINS[skinIndex];
+      const scale = this.scale;
 
       ctx.save();
       ctx.translate(this.x, this.y);
       ctx.rotate(this.angle);
+      ctx.scale(scale, scale);
 
-      applySkinStyle(ctx, skin);
+      applySkinStyle(ctx, skin, skin.lineWidth / scale);
       skin.draw(ctx);
 
       // Llama del propulsor
@@ -529,7 +558,7 @@ class Ship {
         ctx.lineTo(-8 - flameLen, 0);
         ctx.lineTo(-8,  4);
         ctx.strokeStyle = boosted ? skin.boostFlame : skin.flame;
-        ctx.lineWidth   = 1.5;
+        ctx.lineWidth   = 1.5 / scale;
         ctx.shadowBlur  = 0;
         ctx.stroke();
       }
@@ -838,7 +867,8 @@ function explode(x, y, count = 8, color = '255,255,255') {
 // Destruye un asteroide: puntos, explosión, posible power-up y fragmentos.
 function destroyAsteroid(a) {
   a.dead = true;
-  score += a.isShootingStar ? SHOOTING_STAR_POINTS : POINTS[a.size];
+  const base = a.isShootingStar ? SHOOTING_STAR_POINTS : POINTS[a.size];
+  score += base * (SKINS[skinIndex].scoreMultiplier || 1);
   explode(a.x, a.y, a.isShootingStar ? 12 : a.size * 5);
   if (powerups.length === 0 && Math.random() < POWERUP_DROP_CHANCE) {
     const PowerUpTypes = [SpeedBoost, TripleShot, ShieldPowerup];
@@ -1039,11 +1069,13 @@ function drawHUD() {
   for (let i = 0; i < lives; i++)
     drawLifeIcon(W - 16 - i * 22, 18);
 
-  // Skin actual (se cambia con C o con 1-6)
+  // Skin actual (se cambia con C o con 1-7)
   ctx.textAlign = 'left';
   ctx.font      = '13px monospace';
   ctx.fillStyle = 'rgba(255,255,255,0.4)';
-  ctx.fillText(`SKIN: ${SKINS[skinIndex].name}  [C]`, 14, H - 14);
+  const multiplier = SKINS[skinIndex].scoreMultiplier;
+  const skinLabel  = multiplier > 1 ? `${SKINS[skinIndex].name}  x${multiplier} PUNTOS` : SKINS[skinIndex].name;
+  ctx.fillText(`SKIN: ${skinLabel}  [C]`, 14, H - 14);
 }
 
 function drawSkinToast() {
@@ -1098,7 +1130,7 @@ function draw() {
     drawOverlay(
       'GAME OVER',
       `PUNTAJE: ${score}   —   ESPACIO PARA REINICIAR`,
-      'C: CAMBIAR SKIN   ·   1-6: SKIN DIRECTO'
+      'C: CAMBIAR SKIN   ·   1-7: SKIN DIRECTO'
     );
 }
 
