@@ -1,0 +1,200 @@
+# Triaje automático de issues
+#
+# Cada vez que se crea un issue:
+#   1. Añade etiquetas (sin quitar ninguna que el autor haya puesto):
+#      - "necesita-triaje" siempre.
+#      - "bug", "mejora", "pregunta" o "documentacion" según palabras clave
+#        del título y del cuerpo (comparación en minúsculas y sin acentos).
+#      - Las etiquetas se crean en el repositorio si aún no existen.
+#   2. Añade al FINAL del issue una sección con información útil para
+#      revisarlo (autor, fecha, palabras que dispararon cada etiqueta,
+#      último commit de la rama por defecto, checklist de revisión y cómo
+#      ejecutar el juego). El contenido escrito por el autor se mantiene
+#      intacto: solo se hace append, y una marca invisible evita duplicados.
+#
+# Las etiquetas, colores y palabras clave se configuran al inicio del script.
+
+name: Triaje de issues
+
+on:
+  issues:
+    types: [opened]
+
+# El GITHUB_TOKEN necesita escribir en issues (etiquetas y cuerpo) y leer
+# el repositorio (rama por defecto y último commit).
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  triage:
+    name: Etiquetar y añadir información de revisión
+    runs-on: ubuntu-latest
+    steps:
+      - name: Triaje del issue
+        uses: actions/github-script@v7
+        with:
+          retries: 2
+          script: |
+            const issue = context.payload.issue;
+            const { owner, repo } = context.repo;
+
+            // ─── Configuración editable ─────────────────────────────────────
+            // Etiquetas que este workflow puede asignar. Se crean en el
+            // repositorio si no existen. Formato: nombre -> { color, description }.
+            const ETIQUETAS = {
+              'necesita-triaje': { color: 'ffab00', description: 'Pendiente de revisión inicial' },
+              bug: { color: 'd73a4a', description: 'Algo no funciona como se espera' },
+              mejora: { color: 'a2eeef', description: 'Nueva funcionalidad o mejora' },
+              pregunta: { color: 'd876e3', description: 'Consulta, duda o pedido de ayuda' },
+              documentacion: { color: '0075ca', description: 'Cambio o mejora en la documentación' },
+            };
+
+            // Palabras clave que activan cada etiqueta, buscadas en el título y
+            // el cuerpo. Se comparan en minúsculas y sin acentos, así que basta
+            // con escribir la versión sin tildes (p. ej. "aniadir" cubre "añadir").
+            const PALABRAS_CLAVE = {
+              bug: ['bug', 'error', 'fallo', 'falla', 'crash', 'roto', 'glitch', 'excepcion', 'no funciona', 'broken'],
+              mejora: ['mejora', 'sugerencia', 'propuesta', 'agregar', 'aniadir', 'feature', 'power-up', 'idea'],
+              pregunta: ['pregunta', 'duda', 'consulta', 'ayuda', 'como puedo', 'how to', 'question'],
+              documentacion: ['documentacion', 'documento', 'readme', 'guia', 'tutorial'],
+            };
+
+            // Etiqueta que se asigna siempre a un issue recién creado.
+            const ETIQUETA_BASE = 'necesita-triaje';
+
+            // Marca invisible: evita añadir la sección de revisión dos veces.
+            const MARCA = '<!-- triaje-de-issues -->';
+            // ────────────────────────────────────────────────────────────────
+
+            const normalizar = (t) =>
+              (t || '')
+                .toLowerCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '');
+
+            const texto = normalizar(issue.title + '\n' + (issue.body || ''));
+
+            // 1) Etiquetas por palabras clave. Nunca se quitan las que ya tiene.
+            const actuales = new Set((issue.labels || []).map((l) => l.name));
+            const detectadas = new Set([ETIQUETA_BASE]);
+            const coincidencias = {};
+            for (const [etiqueta, palabras] of Object.entries(PALABRAS_CLAVE)) {
+              const palabra = palabras.find((p) => texto.includes(normalizar(p)));
+              if (palabra) {
+                detectadas.add(etiqueta);
+                coincidencias[etiqueta] = palabra;
+              }
+            }
+            const nuevas = [...detectadas].filter((l) => !actuales.has(l));
+
+            // 2) Crear en el repositorio las etiquetas que falten.
+            const existentes = new Set(
+              (await github.paginate(github.rest.issues.listLabelsForRepo, { owner, repo })).map(
+                (l) => l.name
+              )
+            );
+            for (const nombre of nuevas) {
+              if (existentes.has(nombre)) continue;
+              try {
+                await github.rest.issues.createLabel({
+                  owner,
+                  repo,
+                  name: nombre,
+                  color: ETIQUETAS[nombre].color,
+                  description: ETIQUETAS[nombre].description,
+                });
+              } catch (e) {
+                core.warning('No se pudo crear la etiqueta "' + nombre + '": ' + e.message);
+              }
+            }
+
+            // 3) Añadir las etiquetas (solo se suman, no se reemplazan).
+            if (nuevas.length > 0) {
+              try {
+                await github.rest.issues.addLabels({
+                  owner,
+                  repo,
+                  issue_number: issue.number,
+                  labels: nuevas,
+                });
+              } catch (e) {
+                core.warning('No se pudieron añadir etiquetas: ' + e.message);
+              }
+            }
+
+            // 4) Añadir al final del issue la información de revisión, sin tocar
+            //    lo que escribió el autor (append puro).
+            const cuerpo = (issue.body || '').trimEnd();
+            if (cuerpo.includes(MARCA)) {
+              core.info('El issue ya tiene una sección de revisión; no se duplica.');
+              return;
+            }
+
+            // Contexto del código en el momento del reporte: rama por defecto
+            // y último commit. Si falla, se dejan los valores por defecto.
+            let rama = 'main';
+            let commit = 'no disponible';
+            try {
+              rama = (await github.rest.repos.get({ owner, repo })).data.default_branch;
+              const ultimo = await github.rest.repos.getCommit({ owner, repo, ref: rama });
+              const sha = ultimo.data.sha.slice(0, 7);
+              const msg = (ultimo.data.commit.message || '').split('\n')[0].slice(0, 72);
+              commit = sha + ' — ' + msg;
+            } catch (e) {
+              core.warning('No se pudo obtener el último commit: ' + e.message);
+            }
+
+            const fecha = new Date(issue.created_at).toISOString().slice(0, 10);
+            const urlRepo = context.payload.repository.html_url;
+            const todas = [...new Set([...actuales, ...nuevas])]
+              .map((e) => '`' + e + '`')
+              .join(', ');
+            const autoEtiquetas =
+              Object.entries(coincidencias)
+                .map(([e, p]) => '`' + e + '` (coincidió «' + p + '»)')
+                .join(', ') || '—';
+
+            const seccion = [
+              MARCA,
+              '',
+              '---',
+              '',
+              '### 🔍 Información de revisión',
+              '',
+              '_Sección añadida automáticamente por el workflow `issue-triage.yml`._',
+              '_El contenido original del reporte, arriba, queda intacto._',
+              '',
+              '| Campo | Valor |',
+              '| ----- | ----- |',
+              '| Autor | @' + issue.user.login + ' |',
+              '| Fecha de creación | ' + fecha + ' |',
+              '| Etiquetas actuales | ' + (todas || '—') + ' |',
+              '| Etiquetado automático | ' + autoEtiquetas + ' |',
+              '| Último commit en `' + rama + '` | ' + commit + ' |',
+              '| Cómo ejecutar el juego | [README · «Cómo correr»](' + urlRepo + '/blob/' + rama + '/README.md) |',
+              '',
+              '**Checklist para quien revise:**',
+              '',
+              '- [ ] ¿El problema o solicitud está descrito con suficiente detalle?',
+              '- [ ] ¿Se puede reproducir o implementar con la información entregada?',
+              '- [ ] ¿Son correctas las etiquetas asignadas? Ajustarlas si corresponde.',
+              '- [ ] Estimar prioridad y asignar responsable.',
+              '',
+            ].join('\n');
+
+            const cuerpoFinal = cuerpo ? cuerpo + '\n\n' + seccion : seccion;
+            await github.rest.issues.update({
+              owner,
+              repo,
+              issue_number: issue.number,
+              body: cuerpoFinal,
+            });
+
+            core.info(
+              'Issue #' +
+                issue.number +
+                ': etiquetas añadidas (' +
+                (nuevas.join(', ') || 'ninguna') +
+                ') y sección de revisión agregada.'
+            );
